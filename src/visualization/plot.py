@@ -6,13 +6,19 @@ from __future__ import annotations
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+from matplotlib.patches import Rectangle
 
 
-
+# Fixed, distinct styling per robot slot (extend if you ever have >3 robots).
+ROBOT_STYLES = [
+    {"color": "black", "linestyle": "--"},
+    {"color": "#d62728", "linestyle": "-."},   # red dash-dot
+    {"color": "#9467bd", "linestyle": ":"},     # purple dotted
+]
 
 
 def _iter_agents(df, info):
-    
 
     for body in info["humans"]:
 
@@ -57,21 +63,87 @@ def _iter_agents(df, info):
         )
 
 
+def compute_global_xy_limits(dfs_infos, padding=0.3):
+    
+
+    xs = []
+    ys = []
+
+    for df, info in dfs_infos:
+        for _, xyz, _, _ in _iter_agents(df, info):
+            if len(xyz) == 0:
+                continue
+            xs.append(xyz[:, 0])
+            ys.append(xyz[:, 1])
+
+    if not xs:
+        return (0.0, 1.0), (0.0, 1.0)
+
+    xs = np.concatenate(xs)
+    ys = np.concatenate(ys)
+
+    xlim = (xs.min() - padding, xs.max() + padding)
+    ylim = (ys.min() - padding, ys.max() + padding)
+
+    return xlim, ylim
 
 
-
-def plot_scene(df, info, ax=None):
-    """
-    Top-down trajectory plot.
-    """
+def plot_scene(
+    df,
+    info,
+    ax=None,
+    xlim=None,
+    ylim=None,
+    background_image=None,
+    background_extent=None,
+    mask_regions=None,
+    mask_color="white",
+):
+   
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(8, 7))
     else:
         fig = ax.figure
 
+    if background_image is not None:
+
+        if background_extent is None:
+            raise ValueError(
+                "background_extent=(xmin, xmax, ymin, ymax) is required "
+                "when background_image is given, so the map aligns with "
+                "the trajectory coordinates."
+            )
+
+        img = mpimg.imread(background_image)
+
+        ax.imshow(
+            img,
+            extent=background_extent,
+            origin="upper",
+            aspect="auto",
+            zorder=0,
+        )
+
+    if mask_regions:
+
+        for (mxmin, mxmax, mymin, mymax) in mask_regions:
+
+            ax.add_patch(
+                Rectangle(
+                    (mxmin, mymin),
+                    mxmax - mxmin,
+                    mymax - mymin,
+                    facecolor=mask_color,
+                    edgecolor="none",
+                    zorder=1,
+                )
+            )
+
     colors = plt.cm.tab10.colors
     color_id = 0
+
+    robot_id = 0
 
     for name, xyz, _, is_robot in _iter_agents(df, info):
 
@@ -80,13 +152,17 @@ def plot_scene(df, info, ax=None):
 
         if is_robot:
 
+            style = ROBOT_STYLES[robot_id % len(ROBOT_STYLES)]
+            robot_id += 1
+
             ax.plot(
                 xyz[:, 0],
                 xyz[:, 1],
-                "--",
-                color="black",
+                linestyle=style["linestyle"],
+                color=style["color"],
                 lw=2.5,
                 label=name,
+                zorder=3,
             )
 
         else:
@@ -100,27 +176,15 @@ def plot_scene(df, info, ax=None):
                 color=color,
                 lw=2,
                 label=name,
-            )
-
-            ax.scatter(
-                xyz[0, 0],
-                xyz[0, 1],
-                color=color,
-                marker="o",
-                edgecolor="black",
-                s=45,
-            )
-
-            ax.scatter(
-                xyz[-1, 0],
-                xyz[-1, 1],
-                color=color,
-                marker="s",
-                edgecolor="black",
-                s=45,
+                zorder=2,
             )
 
     ax.set_aspect("equal")
+
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    if ylim is not None:
+        ax.set_ylim(*ylim)
 
     ax.set_xlabel("X [m]")
     ax.set_ylabel("Y [m]")
@@ -136,9 +200,6 @@ def plot_scene(df, info, ax=None):
     return fig, ax
 
 
-
-
-
 def plot_x_time(df, info, ax=None):
     """
     X position versus time.
@@ -151,6 +212,7 @@ def plot_x_time(df, info, ax=None):
 
     colors = plt.cm.tab10.colors
     color_id = 0
+    robot_id = 0
 
     for name, xyz, time, is_robot in _iter_agents(df, info):
 
@@ -159,11 +221,14 @@ def plot_x_time(df, info, ax=None):
 
         if is_robot:
 
+            style = ROBOT_STYLES[robot_id % len(ROBOT_STYLES)]
+            robot_id += 1
+
             ax.plot(
                 time,
                 xyz[:, 0],
-                "--",
-                color="black",
+                linestyle=style["linestyle"],
+                color=style["color"],
                 lw=2,
                 label=name,
             )
@@ -190,8 +255,6 @@ def plot_x_time(df, info, ax=None):
     return fig, ax
 
 
-
-
 def plot_speed(df, info, fps, ax=None):
     """
     Plot speed computed over 1-second intervals.
@@ -206,6 +269,7 @@ def plot_speed(df, info, fps, ax=None):
 
     colors = plt.cm.tab10.colors
     color_id = 0
+    robot_id = 0
 
     for name, xyz, time, is_robot in _iter_agents(df, info):
 
@@ -225,11 +289,14 @@ def plot_speed(df, info, fps, ax=None):
 
         if is_robot:
 
+            style = ROBOT_STYLES[robot_id % len(ROBOT_STYLES)]
+            robot_id += 1
+
             ax.plot(
                 plot_time,
                 speed,
-                "--",
-                color="black",
+                linestyle=style["linestyle"],
+                color=style["color"],
                 lw=2,
                 label=name,
             )
@@ -255,71 +322,6 @@ def plot_speed(df, info, fps, ax=None):
     ax.legend(fontsize=8)
 
     return fig, ax
-def plot_speedold(df, info, fps, ax=None):
-    """
-    Speed profiles.
-    """
-
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(10, 4))
-    else:
-        fig = ax.figure
-
-    dt = 1.0 / fps
-
-    colors = plt.cm.tab10.colors
-    color_id = 0
-
-    for name, xyz, time, is_robot in _iter_agents(df, info):
-
-        if len(xyz) < 2:
-            continue
-
-        vel = np.gradient(
-            xyz,
-            dt,
-            axis=0,
-        )
-
-        speed = np.linalg.norm(
-            vel,
-            axis=1,
-        )
-
-        if is_robot:
-
-            ax.plot(
-                time,
-                speed,
-                "--",
-                color="black",
-                lw=2,
-                label=name,
-            )
-
-        else:
-
-            color = colors[color_id % len(colors)]
-            color_id += 1
-
-            ax.plot(
-                time,
-                speed,
-                color=color,
-                label=name,
-            )
-
-    ax.set_xlabel("Time [s]")
-    ax.set_ylabel("Speed [m/s]")
-
-    ax.grid(True, alpha=0.3)
-
-    ax.legend(fontsize=8)
-
-    return fig, ax
-
-
-
 
 
 def plot_raw_vs_solved(raw_df, solved_df, info, ax=None):
