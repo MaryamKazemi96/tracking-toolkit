@@ -1,0 +1,29 @@
+# Data
+data/
+
+# Results
+results/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE / editor files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Temporary files
+*.tmp
+*.log
